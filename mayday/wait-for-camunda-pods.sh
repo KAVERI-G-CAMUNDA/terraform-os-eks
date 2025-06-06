@@ -13,7 +13,7 @@ echo "⏳ Waiting for all Camunda 8 pods to be Running in namespace: $NAMESPACE"
 
 attempt=0
 while true; do
-  NOT_READY_PODS=$(kubectl get pods -n "$NAMESPACE" --no-headers | grep -v "Running" | wc -l)
+  NOT_READY_PODS=$(kubectl get pods -n "$NAMESPACE" --no-headers | grep -vE 'Running|Completed' | wc -l)
   TOTAL_PODS=$(kubectl get pods -n "$NAMESPACE" --no-headers | wc -l)
 
   echo "🔍 $((TOTAL_PODS - NOT_READY_PODS))/$TOTAL_PODS pods are Running..."
