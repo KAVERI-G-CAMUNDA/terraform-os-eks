@@ -1,0 +1,223 @@
+global:
+  ingress:
+    enabled: true
+    className: nginx
+    host: "camunda.local"
+    tls:
+      enabled: true
+      secretName: "tls-secret"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-ssl-secret: "camunda/tls-secret"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+  identity:
+    auth:
+      enabled: true
+      publicIssuerUrl: "https://camunda.local/auth/realms/camunda-platform"
+      identity:
+        redirectUrl: "https://camunda.local/identity"
+      operate:
+        redirectUrl: "https://camunda.local/operate"
+      tasklist:
+        redirectUrl: "https://camunda.local/tasklist"
+      optimize:
+        redirectUrl: "https://camunda.local/optimize"
+      zeebe:
+        existingSecret:
+          name: identity-secret-for-components
+
+identity:
+  contextPath: "/identity"
+  fullURL: "https://camunda.local/identity"
+  # ingress:
+  #   enabled: true
+  #   className: nginx
+  #   host: "identity.camunda.local"
+  enabled: true
+  keycloak:
+    enabled: true
+  env:
+    # - name: IDENTITY_URL
+    #   value: "https://camunda.local/identity"
+    - name: LOGGING_LEVEL_ROOT
+      value: "TRACE"
+
+operate:
+  contextPath: "/operate"
+  enabled: true
+  env:
+    # - name: LOGGING_LEVEL_ROOT
+    #   value: "TRACE"
+    - name: CAMUNDA_REST_QUERY_ENABLED
+      value: "true"
+
+    # gateway connection over TLS - 26500
+    - name: CAMUNDA_OPERATE_ZEEBE_SECURE
+      value: "true"
+    - name: CAMUNDA_OPERATE_ZEEBE_CERTIFICATE_PATH
+      value: "/usr/local/certs/tls.crt"
+    - name: CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS
+      value: camunda-zeebe-gateway:26500
+
+  # gateway cluster security configuration - inter-cluster communication - 26502
+  # - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_ENABLED
+  #   value: "true"
+  # - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_CERTIFICATECHAINPATH
+  #   value: /usr/local/certs/tls.crt
+  # - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_PRIVATEKEYPATH
+  #   value: /usr/local/certs/tls.key
+
+  extraVolumes:
+    - name: tls-secret
+      secret:
+        secretName: tls-secret-zeebe
+  extraVolumeMounts:
+    - name: tls-secret
+      mountPath: /usr/local/certs
+      readOnly: true
+
+optimize:
+  enabled: false
+
+tasklist:
+  contextPath: "/tasklist"
+  enabled: false
+
+# identityPostgresql:
+#   enabled: true
+
+connectors:
+  enabled: true
+  # inbound:
+  #   mode: disabled
+  env:
+    - name: LOGGING_LEVEL_ROOT
+      value: "INFO"
+    # enable grpc log
+    - name: LOGGING_LEVEL_IO_GRPC
+      value: "TRACE"
+    - name: LOGGING_LEVEL_IO_GRPC_NETTY
+      value: "TRACE"
+    - name: LOGGING_LEVEL_IO_GRPC_INTERNAL
+      value: "TRACE"
+
+    # gateway connection over TLS - 26500
+    - name: ZEEBE_CLIENT_SECURITY_PLAINTEXT
+      value: "false"
+    - name: CAMUNDA_CLIENT_ZEEBE_CACERTIFICATEPATH
+      value: /usr/local/certs/tls.crt
+
+    - name: JAVA_TOOL_OPTIONS
+      value: >-
+        -XX:+ExitOnOutOfMemoryError
+        -Djavax.net.debug=all
+
+  extraVolumes:
+    - name: tls-zeebe
+      secret:
+        secretName: tls-secret-zeebe
+  # - name: zeebe-truststore
+  #   secret:
+  #     secretName: zeebe-truststore
+  #     optional: false
+  extraVolumeMounts:
+    - name: tls-zeebe
+      mountPath: /usr/local/certs
+      readOnly: true
+      # - name: zeebe-truststore
+      #   mountPath: /usr/local/truststore
+      #   readOnly: true
+
+identityKeycloak:
+  enabled: true
+
+zeebe:
+  enabled: true
+  clusterSize: 1
+  partitionCount: 1
+  replicationFactor: 1
+  pvcSize: 10Gi
+  affinity:
+    podAntiAffinity: null
+  env:
+    # gateway cluster security configuration - inter-cluster communication - 26502
+    - name: ZEEBE_BROKER_NETWORK_SECURITY_ENABLED
+      value: "true"
+    - name: ZEEBE_BROKER_NETWORK_SECURITY_CERTIFICATECHAINPATH
+      value: /usr/local/certs/tls.crt
+    - name: ZEEBE_BROKER_NETWORK_SECURITY_PRIVATEKEYPATH
+      value: /usr/local/certs/tls.key
+
+    # secure REST APIs
+    - name: SERVER_SSL_ENABLED
+      value: "true"
+    - name: SERVER_SSL_CERTIFICATE
+      value: /usr/local/certs/tls.crt
+    - name: SERVER_SSL_CERTIFICATEPRIVATEKEY
+      value: /usr/local/certs/tls.key
+  extraVolumes:
+    - name: tls-secret
+      secret:
+        secretName: tls-secret-zeebe
+  extraVolumeMounts:
+    - name: tls-secret
+      mountPath: /usr/local/certs
+      readOnly: true
+
+zeebeGateway:
+  enabled: true
+  ingress:
+    enabled: true
+    className: nginx
+    host: "zeebe.camunda.local"
+    tls:
+      enabled: true
+      secretName: "tls-secret-zeebe"
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-ssl-secret: "camunda/tls-secret-zeebe"
+  replicas: 1
+  # env:
+  #   - name: CAMUNDA_IDENTITY_BASEURL
+  #     value: "http://camunda-identity.camunda.svc.cluster.local:80/auth"
+  env:
+    - name: CAMUNDA_REST_QUERY_ENABLED
+      value: "true"
+
+    # - name: ZEEBE_GATEWAY_SECURITY_ENABLED
+    #   value: "false"
+    # - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_ENABLED
+    #   value: "false"
+
+    # gateway cluster security configuration - inter-cluster communication - 26502
+    - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_ENABLED
+      value: "true"
+    - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_CERTIFICATECHAINPATH
+      value: /usr/local/certs/tls.crt
+    - name: ZEEBE_GATEWAY_CLUSTER_SECURITY_PRIVATEKEYPATH
+      value: /usr/local/certs/tls.key
+
+    # secure client communication - client-to-gateway communication - 26500
+    - name: ZEEBE_GATEWAY_SECURITY_ENABLED
+      value: "true"
+    - name: ZEEBE_GATEWAY_SECURITY_CERTIFICATECHAINPATH
+      value: /usr/local/certs/tls.crt
+    - name: ZEEBE_GATEWAY_SECURITY_PRIVATEKEYPATH
+      value: /usr/local/certs/tls.key
+  extraVolumes:
+    - name: tls-secret
+      secret:
+        secretName: tls-secret-zeebe
+  extraVolumeMounts:
+    - name: tls-secret
+      mountPath: /usr/local/certs
+      readOnly: true
+
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 1
+    persistence:
+      size: 15Gi
